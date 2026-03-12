@@ -9,25 +9,13 @@ import PatientRow from "@/components/PatientRow";
 import Pagination from "@/components/Pagination";
 
 interface FilterState {
-  search: string;
-  issue: string;
-  minAge: string;
-  maxAge: string;
-  sortBy: string;
-  sortOrder: string;
-  page: number;
-  limit: number;
+  search: string; issue: string; minAge: string; maxAge: string;
+  sortBy: string; sortOrder: string; page: number; limit: number;
 }
 
 const INITIAL_FILTERS: FilterState = {
-  search: "",
-  issue: "",
-  minAge: "",
-  maxAge: "",
-  sortBy: "patient_name",
-  sortOrder: "asc",
-  page: 1,
-  limit: 20,
+  search: "", issue: "", minAge: "", maxAge: "",
+  sortBy: "patient_name", sortOrder: "asc", page: 1, limit: 20,
 };
 
 export default function Home() {
@@ -39,229 +27,266 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Build query string from filters
   const buildQuery = useCallback((f: FilterState) => {
-    const params = new URLSearchParams();
-    if (f.search) params.set("search", f.search);
-    if (f.issue) params.set("issue", f.issue);
-    if (f.minAge) params.set("minAge", f.minAge);
-    if (f.maxAge) params.set("maxAge", f.maxAge);
-    params.set("sortBy", f.sortBy);
-    params.set("sortOrder", f.sortOrder);
-    params.set("page", String(f.page));
-    params.set("limit", String(f.limit));
-    return params.toString();
+    const p = new URLSearchParams();
+    if (f.search) p.set("search", f.search);
+    if (f.issue)  p.set("issue", f.issue);
+    if (f.minAge) p.set("minAge", f.minAge);
+    if (f.maxAge) p.set("maxAge", f.maxAge);
+    p.set("sortBy", f.sortBy); p.set("sortOrder", f.sortOrder);
+    p.set("page", String(f.page)); p.set("limit", String(f.limit));
+    return p.toString();
   }, []);
 
-  // Fetch patients whenever filters change
   useEffect(() => {
-    const fetchPatients = async () => {
-      setLoading(true);
-      setError(null);
+    const fetch_ = async () => {
+      setLoading(true); setError(null);
       try {
         const res = await fetch(`/api/patients?${buildQuery(filters)}`);
-        if (!res.ok) throw new Error("Failed to fetch patients");
+        if (!res.ok) throw new Error();
         const json: PatientsApiResponse = await res.json();
-        setPatients(json.data);
-        setTotal(json.total);
-        setTotalPages(json.totalPages);
-      } catch (err) {
-        setError("Something went wrong. Please try again.");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+        setPatients(json.data); setTotal(json.total); setTotalPages(json.totalPages);
+      } catch { setError("Failed to load patients. Please try again."); }
+      finally { setLoading(false); }
     };
-
-    fetchPatients();
+    fetch_();
   }, [filters, buildQuery]);
 
-  // Helper: update a single filter and reset to page 1
-  const updateFilter = <K extends keyof FilterState>(
-    key: K,
-    value: FilterState[K]
-  ) => {
+  const updateFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
-  };
 
   const resetFilters = () => setFilters(INITIAL_FILTERS);
-
-  const hasActiveFilters =
-    filters.search || filters.issue || filters.minAge || filters.maxAge;
+  const hasActive = filters.search || filters.issue || filters.minAge || filters.maxAge;
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <main style={{ minHeight: "100vh", padding: "36px 24px 60px" }}>
+      {/* Decorative blobs */}
+      <div className="blob1" style={{
+        position: "fixed", top: "-80px", right: "-80px", width: "400px", height: "400px",
+        borderRadius: "50%", background: "radial-gradient(circle, #ddd6fe66, transparent 70%)",
+        pointerEvents: "none", zIndex: 0,
+      }} />
+      <div className="blob2" style={{
+        position: "fixed", bottom: "-60px", left: "-60px", width: "350px", height: "350px",
+        borderRadius: "50%", background: "radial-gradient(circle, #fbcfe866, transparent 70%)",
+        pointerEvents: "none", zIndex: 0,
+      }} />
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Patient Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Manage and view all patient records
-          </p>
-        </div>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", position: "relative", zIndex: 1 }}>
 
-        {/* Controls Bar */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
-          {/* Left: Search + Filters */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <SearchBar
-              value={filters.search}
-              onChange={(val) => updateFilter("search", val)}
-            />
-            <Filters
-              issue={filters.issue}
-              minAge={filters.minAge}
-              maxAge={filters.maxAge}
-              sortBy={filters.sortBy}
-              sortOrder={filters.sortOrder}
-              onIssueChange={(val) => updateFilter("issue", val)}
-              onMinAgeChange={(val) => updateFilter("minAge", val)}
-              onMaxAgeChange={(val) => updateFilter("maxAge", val)}
-              onSortByChange={(val) => updateFilter("sortBy", val)}
-              onSortOrderChange={(val) => updateFilter("sortOrder", val)}
-            />
-            {/* Reset button — only shows when filters are active */}
-            {hasActiveFilters && (
-              <button
-                onClick={resetFilters}
-                className="px-3 py-2 text-sm text-red-500 hover:text-red-700 hover:underline"
-              >
-                Clear filters
-              </button>
-            )}
+        {/* ── Header ── */}
+        <div className="header-enter" style={{ marginBottom: "32px" }}>
+          {/* Pill tag */}
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            background: "#ede9fe", border: "1px solid #c4b5fd",
+            borderRadius: "999px", padding: "4px 14px",
+            fontSize: "12px", fontWeight: 700, color: "#7c3aed",
+            letterSpacing: "0.06em", textTransform: "uppercase",
+            marginBottom: "12px",
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c3aed", display: "inline-block" }} />
+            Medical Records
           </div>
 
-          {/* Right: View Toggle */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setView("card")}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                view === "card"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              ⊞ Cards
-            </button>
-            <button
-              onClick={() => setView("row")}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                view === "row"
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              ☰ List
-            </button>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+            <div>
+              <h1 style={{
+                fontFamily: "'Playfair Display', serif",
+                fontSize: "clamp(28px, 4vw, 42px)",
+                fontWeight: 800,
+                color: "#2d2440",
+                lineHeight: 1.15,
+                margin: 0,
+                letterSpacing: "-0.02em",
+              }}>
+                Patient Dashboard
+                <span style={{
+                  display: "inline-block", marginLeft: "12px",
+                  background: "linear-gradient(135deg, #9b6dff, #ff7eb3)",
+                  borderRadius: "12px", padding: "2px 14px",
+                  fontSize: "clamp(14px, 2vw, 20px)", fontWeight: 700,
+                  color: "#fff", verticalAlign: "middle",
+                  fontFamily: "'Nunito', sans-serif",
+                }}>
+                  {total > 0 ? total.toLocaleString() : "—"}
+                </span>
+              </h1>
+              <p style={{ color: "#9c8db8", fontSize: "15px", marginTop: "6px", fontWeight: 500 }}>
+                Search, filter and manage all patient records
+              </p>
+            </div>
+
+            {/* View toggle */}
+            <div style={{
+              display: "flex", background: "#ede9fe",
+              border: "1px solid #c4b5fd", borderRadius: "14px",
+              padding: "5px", gap: "4px",
+            }}>
+              {(["card", "row"] as const).map((v) => (
+                <button key={v} onClick={() => setView(v)} style={{
+                  padding: "8px 18px", borderRadius: "10px",
+                  fontSize: "13px", fontWeight: 700, border: "none",
+                  cursor: "pointer", transition: "all 0.2s",
+                  fontFamily: "'Nunito', sans-serif",
+                  background: view === v ? "linear-gradient(135deg, #9b6dff, #c084fc)" : "transparent",
+                  color: view === v ? "#fff" : "#7c6f99",
+                  boxShadow: view === v ? "0 4px 12px #9b6dff44" : "none",
+                }}>
+                  {v === "card" ? "⊞ Cards" : "☰ List"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Results count */}
-        {!loading && !error && (
-          <p className="text-sm text-gray-500 mb-4">
-            {total} patient{total !== 1 ? "s" : ""} found
-          </p>
-        )}
+        {/* ── Controls ── */}
+        <div className="controls-enter" style={{
+          background: "rgba(255,255,255,0.75)",
+          backdropFilter: "blur(16px)",
+          border: "1px solid #e8dff7",
+          borderRadius: "20px",
+          padding: "18px 22px",
+          marginBottom: "28px",
+          display: "flex", flexWrap: "wrap",
+          gap: "12px", alignItems: "center",
+          boxShadow: "0 4px 24px #9b6dff0d",
+        }}>
+          <SearchBar value={filters.search} onChange={(v) => updateFilter("search", v)} />
+          <Filters
+            issue={filters.issue} minAge={filters.minAge} maxAge={filters.maxAge}
+            sortBy={filters.sortBy} sortOrder={filters.sortOrder}
+            onIssueChange={(v) => updateFilter("issue", v)}
+            onMinAgeChange={(v) => updateFilter("minAge", v)}
+            onMaxAgeChange={(v) => updateFilter("maxAge", v)}
+            onSortByChange={(v) => updateFilter("sortBy", v)}
+            onSortOrderChange={(v) => updateFilter("sortOrder", v)}
+          />
+          {hasActive && (
+            <button onClick={resetFilters} style={{
+              background: "#fff0f5", border: "1px solid #fbb6ce",
+              color: "#e05a8a", borderRadius: "10px",
+              padding: "8px 16px", fontSize: "13px",
+              fontWeight: 700, cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+              transition: "all 0.2s",
+            }}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
 
-        {/* Error State */}
+        {/* ── Error ── */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center text-red-600">
-            <p className="font-medium">{error}</p>
-            <button
-              onClick={() => setFilters((f) => ({ ...f }))}
-              className="mt-2 text-sm underline hover:no-underline"
-            >
-              Retry
-            </button>
+          <div style={{
+            background: "#fff0f5", border: "1px solid #fbb6ce",
+            borderRadius: "20px", padding: "40px",
+            textAlign: "center",
+          }}>
+            <p style={{ fontSize: "40px", marginBottom: "12px" }}>⚠️</p>
+            <p style={{ color: "#be185d", fontSize: "16px", fontWeight: 600 }}>{error}</p>
+            <button onClick={() => setFilters(f => ({ ...f }))} style={{
+              marginTop: "16px", background: "linear-gradient(135deg, #f472b6, #ec4899)",
+              color: "#fff", border: "none", borderRadius: "12px",
+              padding: "10px 24px", fontSize: "14px",
+              fontWeight: 700, cursor: "pointer",
+            }}>Retry</button>
           </div>
         )}
 
-        {/* Loading State */}
+        {/* ── Loading Skeletons ── */}
         {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: "18px" }}>
             {Array.from({ length: 12 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-xl border border-gray-200 p-5 h-48 animate-pulse"
-              >
-                <div className="flex gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gray-200 rounded-full" />
-                  <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-3 bg-gray-200 rounded w-3/4" />
-                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+              <div key={i} style={{
+                background: "rgba(255,255,255,0.8)", border: "1px solid #e8dff7",
+                borderRadius: "20px", padding: "22px", height: "210px",
+              }}>
+                <div style={{ display: "flex", gap: "12px", marginBottom: "18px" }}>
+                  <div className="skeleton" style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="skeleton" style={{ height: 13, width: "70%", marginBottom: 8 }} />
+                    <div className="skeleton" style={{ height: 11, width: "45%" }} />
                   </div>
                 </div>
-                <div className="h-5 bg-gray-200 rounded w-1/3 mb-4" />
-                <div className="space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-full" />
-                  <div className="h-3 bg-gray-200 rounded w-2/3" />
-                </div>
+                <div className="skeleton" style={{ height: 26, width: "45%", borderRadius: 999, marginBottom: 18 }} />
+                <div className="skeleton" style={{ height: 11, width: "90%", marginBottom: 8 }} />
+                <div className="skeleton" style={{ height: 11, width: "60%" }} />
               </div>
             ))}
           </div>
         )}
 
-        {/* Empty State */}
+        {/* ── Empty State ── */}
         {!loading && !error && patients.length === 0 && (
-          <div className="text-center py-20 text-gray-400">
-            <p className="text-4xl mb-3">🔍</p>
-            <p className="font-medium text-gray-600">No patients found</p>
-            <p className="text-sm mt-1">Try adjusting your search or filters</p>
-            <button
-              onClick={resetFilters}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-            >
-              Clear all filters
-            </button>
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <div style={{ fontSize: "56px", marginBottom: "16px" }}>🔍</div>
+            <h3 style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: "24px", color: "#2d2440", marginBottom: "8px",
+            }}>No patients found</h3>
+            <p style={{ color: "#9c8db8", fontSize: "15px", marginBottom: "24px" }}>
+              Try adjusting your search or filters
+            </p>
+            <button onClick={resetFilters} style={{
+              background: "linear-gradient(135deg, #9b6dff, #c084fc)",
+              color: "#fff", border: "none", borderRadius: "14px",
+              padding: "12px 28px", fontSize: "15px",
+              fontWeight: 700, cursor: "pointer",
+              boxShadow: "0 6px 20px #9b6dff33",
+              fontFamily: "'Nunito', sans-serif",
+            }}>Clear all filters</button>
           </div>
         )}
 
-        {/* Card View */}
+        {/* ── Card View ── */}
         {!loading && !error && patients.length > 0 && view === "card" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {patients.map((patient) => (
-              <PatientCard key={patient.patient_id} patient={patient} />
-            ))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: "18px" }}>
+            {patients.map((p, i) => <PatientCard key={p.patient_id} patient={p} index={i} />)}
           </div>
         )}
 
-        {/* Row / Table View */}
+        {/* ── Row View ── */}
         {!loading && !error && patients.length > 0 && view === "row" && (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+          <div style={{
+            background: "rgba(255,255,255,0.8)",
+            backdropFilter: "blur(16px)",
+            border: "1px solid #e8dff7",
+            borderRadius: "20px", overflow: "hidden",
+            boxShadow: "0 4px 24px #9b6dff0d",
+            animation: "fadeIn 0.4s ease both",
+          }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Patient</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Age</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Condition</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Phone</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Address</th>
+                  <tr style={{ background: "linear-gradient(135deg, #f5f0ff, #fdf4ff)", borderBottom: "1px solid #e8dff7" }}>
+                    {["Patient", "Age", "Condition", "Email", "Phone", "Address"].map((h) => (
+                      <th key={h} style={{
+                        padding: "14px 20px", textAlign: "left",
+                        fontSize: "11px", fontWeight: 800,
+                        letterSpacing: "0.08em", color: "#9b6dff",
+                        textTransform: "uppercase",
+                        fontFamily: "'Nunito', sans-serif",
+                      }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {patients.map((patient) => (
-                    <PatientRow key={patient.patient_id} patient={patient} />
-                  ))}
+                  {patients.map((p, i) => <PatientRow key={p.patient_id} patient={p} index={i} />)}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* Pagination */}
+        {/* ── Pagination ── */}
         {!loading && !error && patients.length > 0 && (
           <Pagination
-            page={filters.page}
-            totalPages={totalPages}
-            total={total}
+            page={filters.page} totalPages={totalPages} total={total}
             limit={filters.limit}
             onPageChange={(p) => setFilters((prev) => ({ ...prev, page: p }))}
           />
         )}
-
       </div>
     </main>
   );

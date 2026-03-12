@@ -1,45 +1,48 @@
 "use client";
-
 import { useEffect, useRef } from "react";
 
-interface SearchBarProps {
-  value: string;
-  onChange: (value: string) => void;
-}
-
-export default function SearchBar({ value, onChange }: SearchBarProps) {
+export default function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-
-    // Clear previous timer
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    // Set new timer — fires 300ms after user stops typing
-    debounceRef.current = setTimeout(() => {
-      onChange(val);
-    }, 300);
+    debounceRef.current = setTimeout(() => onChange(e.target.value), 300);
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   return (
-    <div className="relative w-full max-w-md">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-        🔍
-      </span>
+    <div style={{ position: "relative" }}>
+      <svg style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 15, height: 15 }}
+        fill="none" stroke="#b3a8cc" strokeWidth="2.5" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+      </svg>
       <input
         type="text"
         defaultValue={value}
         onChange={handleChange}
         placeholder="Search by name or email..."
-        className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        style={{
+          background: "#faf7ff",
+          border: "1.5px solid #e8dff7",
+          color: "#2d2440",
+          borderRadius: "12px",
+          padding: "9px 14px 9px 36px",
+          fontSize: "13px",
+          width: "250px",
+          outline: "none",
+          fontFamily: "'Nunito', sans-serif",
+          fontWeight: 500,
+          transition: "border-color 0.2s, box-shadow 0.2s",
+        }}
+        onFocus={(e) => {
+          e.target.style.borderColor = "#9b6dff";
+          e.target.style.boxShadow = "0 0 0 3px #9b6dff18";
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = "#e8dff7";
+          e.target.style.boxShadow = "none";
+        }}
       />
     </div>
   );

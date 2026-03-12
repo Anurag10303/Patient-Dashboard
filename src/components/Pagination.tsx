@@ -1,71 +1,62 @@
 interface PaginationProps {
-  page: number;
-  totalPages: number;
-  total: number;
-  limit: number;
-  onPageChange: (page: number) => void;
+  page: number; totalPages: number; total: number;
+  limit: number; onPageChange: (p: number) => void;
 }
 
-export default function Pagination({
-  page, totalPages, total, limit, onPageChange,
-}: PaginationProps) {
+export default function Pagination({ page, totalPages, total, limit, onPageChange }: PaginationProps) {
   const from = (page - 1) * limit + 1;
   const to = Math.min(page * limit, total);
 
-  // Build page number array with ellipsis logic
   const getPages = (): (number | "...")[] => {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-    }
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     if (page <= 4) return [1, 2, 3, 4, 5, "...", totalPages];
-    if (page >= totalPages - 3)
-      return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    if (page >= totalPages - 3) return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
     return [1, "...", page - 1, page, page + 1, "...", totalPages];
   };
 
+  const base: React.CSSProperties = {
+    height: "36px", minWidth: "36px", borderRadius: "10px",
+    border: "1.5px solid #e8dff7", background: "#faf7ff",
+    color: "#7c6f99", fontSize: "13px", fontWeight: 700,
+    cursor: "pointer", transition: "all 0.2s",
+    fontFamily: "'Nunito', sans-serif", padding: "0 10px",
+  };
+
+  const active: React.CSSProperties = {
+    ...base,
+    background: "linear-gradient(135deg, #9b6dff, #c084fc)",
+    color: "#fff", border: "none",
+    boxShadow: "0 4px 14px #9b6dff44",
+  };
+
   return (
-    <div className="flex items-center justify-between mt-6">
-      <p className="text-sm text-gray-500">
-        Showing <span className="font-medium">{from}–{to}</span> of{" "}
-        <span className="font-medium">{total}</span> patients
+    <div style={{
+      display: "flex", alignItems: "center",
+      justifyContent: "space-between", marginTop: "32px",
+      paddingTop: "20px", borderTop: "1px solid #e8dff7",
+    }}>
+      <p style={{ fontSize: "13px", color: "#b3a8cc", fontWeight: 500 }}>
+        Showing{" "}
+        <span style={{ color: "#7c6f99", fontWeight: 700 }}>{from}–{to}</span>
+        {" "}of{" "}
+        <span style={{ color: "#9b6dff", fontWeight: 700 }}>{total}</span> patients
       </p>
 
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onPageChange(page - 1)}
-          disabled={page === 1}
-          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          ← Prev
-        </button>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
+          style={{ ...base, opacity: page === 1 ? 0.35 : 1 }}>←</button>
 
-        {getPages().map((p, idx) =>
+        {getPages().map((p, i) =>
           p === "..." ? (
-            <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
-              ...
-            </span>
+            <span key={`e${i}`} style={{ color: "#c4b5fd", padding: "0 4px", fontSize: "16px" }}>…</span>
           ) : (
-            <button
-              key={p}
-              onClick={() => onPageChange(p as number)}
-              className={`w-9 h-9 rounded-lg text-sm font-medium border transition-colors ${
-                p === page
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 hover:bg-gray-50 text-gray-700"
-              }`}
-            >
-              {p}
-            </button>
+            <button key={p} onClick={() => onPageChange(p as number)}
+              style={p === page ? active : base}>{p}</button>
           )
         )}
 
-        <button
-          onClick={() => onPageChange(page + 1)}
-          disabled={page === totalPages}
-          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Next →
-        </button>
+        <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages}
+          style={{ ...base, opacity: page === totalPages ? 0.35 : 1 }}>→</button>
       </div>
     </div>
   );

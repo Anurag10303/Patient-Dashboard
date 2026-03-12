@@ -1,26 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Nunito:wght@300;400;500;600;700&display=swap');
+
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f5f0ff;
+  --bg2: #fdf6ff;
+  --surface: #ffffff;
+  --surface2: #faf7ff;
+  --border: #e8dff7;
+  --accent: #9b6dff;
+  --accent2: #ff7eb3;
+  --accent3: #43cfa8;
+  --text-primary: #2d2440;
+  --text-secondary: #7c6f99;
+  --text-muted: #b3a8cc;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Nunito', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
 }
+
+/* Animated mesh background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 10%, #ddd6fe55 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 20%, #fbcfe855 0%, transparent 55%),
+    radial-gradient(ellipse 70% 60% at 50% 90%, #a7f3d055 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 80%, #fde68a33 0%, transparent 50%);
+  pointer-events: none;
+}
+
+body > * { position: relative; z-index: 1; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #d8cff0; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #ede9f8 25%, #f5f0ff 50%, #ede9f8 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.6s ease infinite;
+  border-radius: 8px;
+}
+
+/* Card staggered entrance */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.card-enter {
+  opacity: 0;
+  animation: fadeSlideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Header animation */
+@keyframes fadeSlideDown {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.header-enter {
+  animation: fadeSlideDown 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Controls animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.controls-enter {
+  animation: fadeIn 0.5s 0.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Floating blobs */
+@keyframes float1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(20px, -20px) scale(1.05); }
+}
+@keyframes float2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(-15px, 15px) scale(1.03); }
+}
+
+.blob1 { animation: float1 8s ease-in-out infinite; }
+.blob2 { animation: float2 10s ease-in-out infinite; }
