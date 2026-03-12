@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Patient, PatientsApiResponse } from "@/types/patient";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Patient, PatientsApiResponse, PatientStats } from "@/types/patient";
 import SearchBar from "@/components/SearchBar";
 import Filters from "@/components/Filters";
 import PatientCard from "@/components/PatientCard";
 import PatientRow from "@/components/PatientRow";
 import Pagination from "@/components/Pagination";
+import StatsBar from "@/components/StatsBar";
+import { exportToCSV } from "@/utils/exportCsv";
 
 interface FilterState {
   search: string; issue: string; minAge: string; maxAge: string;
@@ -22,10 +24,15 @@ export default function Home() {
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [view, setView] = useState<"card" | "row">("card");
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [stats, setStats] = useState<PatientStats | null>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [refetching, setRefetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visible, setVisible] = useState(true);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const isFirst = useRef(true);
 
   const buildQuery = useCallback((f: FilterState) => {
     const p = new URLSearchParams();
@@ -39,44 +46,85 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const fetch_ = async () => {
-      setLoading(true); setError(null);
+    const fetchPatients = async () => {
+      // First load → full skeleton; subsequent → smooth fade transition
+      if (isFirst.current) {
+        setLoading(true);
+      } else {
+        // Fade out current results
+        setVisible(false);
+        setRefetching(true);
+        await new Promise(r => setTimeout(r, 180));
+      }
+
+      setError(null);
+
       try {
         const res = await fetch(`/api/patients?${buildQuery(filters)}`);
         if (!res.ok) throw new Error();
         const json: PatientsApiResponse = await res.json();
-        setPatients(json.data); setTotal(json.total); setTotalPages(json.totalPages);
-      } catch { setError("Failed to load patients. Please try again."); }
-      finally { setLoading(false); }
+        setPatients(json.data);
+        setTotal(json.total);
+        setTotalPages(json.totalPages);
+        if (json.stats) setStats(json.stats);
+      } catch {
+        setError("Failed to load patients. Please try again.");
+      } finally {
+        setLoading(false);
+        setRefetching(false);
+        setVisible(true);
+        isFirst.current = false;
+      }
     };
-    fetch_();
+
+    fetchPatients();
   }, [filters, buildQuery]);
 
+  // ── Ctrl+K / Cmd+K → focus search ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        // Find the search input and focus it
+        const input = document.querySelector<HTMLInputElement>("input[placeholder*='Search']");
+        input?.focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const updateFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) =>
-    setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
+    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
 
   const resetFilters = () => setFilters(INITIAL_FILTERS);
   const hasActive = filters.search || filters.issue || filters.minAge || filters.maxAge;
 
+  // CSV exports only current filtered page results
+  const handleExport = () => {
+    exportToCSV(patients, `patients-page-${filters.page}.csv`);
+  };
+
   return (
     <main style={{ minHeight: "100vh", padding: "36px 24px 60px" }}>
-      {/* Decorative blobs */}
+      {/* Blobs */}
       <div className="blob1" style={{
-        position: "fixed", top: "-80px", right: "-80px", width: "400px", height: "400px",
-        borderRadius: "50%", background: "radial-gradient(circle, #ddd6fe66, transparent 70%)",
+        position: "fixed", top: "-80px", right: "-80px",
+        width: "400px", height: "400px", borderRadius: "50%",
+        background: "radial-gradient(circle, #ddd6fe66, transparent 70%)",
         pointerEvents: "none", zIndex: 0,
       }} />
       <div className="blob2" style={{
-        position: "fixed", bottom: "-60px", left: "-60px", width: "350px", height: "350px",
-        borderRadius: "50%", background: "radial-gradient(circle, #fbcfe866, transparent 70%)",
+        position: "fixed", bottom: "-60px", left: "-60px",
+        width: "350px", height: "350px", borderRadius: "50%",
+        background: "radial-gradient(circle, #fbcfe866, transparent 70%)",
         pointerEvents: "none", zIndex: 0,
       }} />
 
       <div style={{ maxWidth: "1400px", margin: "0 auto", position: "relative", zIndex: 1 }}>
 
         {/* ── Header ── */}
-        <div className="header-enter" style={{ marginBottom: "32px" }}>
-          {/* Pill tag */}
+        <div className="header-enter" style={{ marginBottom: "28px" }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: "6px",
             background: "#ede9fe", border: "1px solid #c4b5fd",
@@ -94,10 +142,8 @@ export default function Home() {
               <h1 style={{
                 fontFamily: "'Playfair Display', serif",
                 fontSize: "clamp(28px, 4vw, 42px)",
-                fontWeight: 800,
-                color: "#2d2440",
-                lineHeight: 1.15,
-                margin: 0,
+                fontWeight: 800, color: "#2d2440",
+                lineHeight: 1.15, margin: 0,
                 letterSpacing: "-0.02em",
               }}>
                 Patient Dashboard
@@ -108,59 +154,104 @@ export default function Home() {
                   fontSize: "clamp(14px, 2vw, 20px)", fontWeight: 700,
                   color: "#fff", verticalAlign: "middle",
                   fontFamily: "'Nunito', sans-serif",
+                  transition: "opacity 0.3s",
+                  opacity: refetching ? 0.5 : 1,
                 }}>
-                  {total > 0 ? total.toLocaleString() : "—"}
+                  {refetching ? "..." : total > 0 ? total.toLocaleString() : "—"}
                 </span>
               </h1>
               <p style={{ color: "#9c8db8", fontSize: "15px", marginTop: "6px", fontWeight: 500 }}>
                 Search, filter and manage all patient records
+                {" "}
+                <kbd style={{
+                  background: "#ede9fe", border: "1px solid #c4b5fd",
+                  borderRadius: "6px", padding: "1px 7px",
+                  fontSize: "11px", color: "#7c3aed", fontWeight: 700,
+                  fontFamily: "'Nunito', sans-serif",
+                }}>Ctrl+K</kbd>
+                {" "}to search
               </p>
             </div>
 
-            {/* View toggle */}
-            <div style={{
-              display: "flex", background: "#ede9fe",
-              border: "1px solid #c4b5fd", borderRadius: "14px",
-              padding: "5px", gap: "4px",
-            }}>
-              {(["card", "row"] as const).map((v) => (
-                <button key={v} onClick={() => setView(v)} style={{
-                  padding: "8px 18px", borderRadius: "10px",
-                  fontSize: "13px", fontWeight: 700, border: "none",
-                  cursor: "pointer", transition: "all 0.2s",
-                  fontFamily: "'Nunito', sans-serif",
-                  background: view === v ? "linear-gradient(135deg, #9b6dff, #c084fc)" : "transparent",
-                  color: view === v ? "#fff" : "#7c6f99",
-                  boxShadow: view === v ? "0 4px 12px #9b6dff44" : "none",
-                }}>
-                  {v === "card" ? "⊞ Cards" : "☰ List"}
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              {/* Export button */}
+              {patients.length > 0 && (
+                <button
+                  onClick={handleExport}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px",
+                    background: "rgba(255,255,255,0.9)",
+                    border: "1.5px solid #e8dff7",
+                    borderRadius: "12px", padding: "9px 16px",
+                    fontSize: "13px", fontWeight: 700,
+                    color: "#7c6f99", cursor: "pointer",
+                    fontFamily: "'Nunito', sans-serif",
+                    transition: "all 0.2s",
+                    boxShadow: "0 2px 8px #9b6dff0a",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "#9b6dff";
+                    e.currentTarget.style.color = "#9b6dff";
+                    e.currentTarget.style.background = "#f5f0ff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "#e8dff7";
+                    e.currentTarget.style.color = "#7c6f99";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.9)";
+                  }}
+                >
+                  ⬇ Export CSV
                 </button>
-              ))}
+              )}
+
+              {/* View toggle */}
+              <div style={{
+                display: "flex", background: "#ede9fe",
+                border: "1px solid #c4b5fd",
+                borderRadius: "14px", padding: "5px", gap: "4px",
+              }}>
+                {(["card", "row"] as const).map(v => (
+                  <button key={v} onClick={() => setView(v)} style={{
+                    padding: "8px 18px", borderRadius: "10px",
+                    fontSize: "13px", fontWeight: 700,
+                    border: "none", cursor: "pointer",
+                    transition: "all 0.2s",
+                    fontFamily: "'Nunito', sans-serif",
+                    background: view === v ? "linear-gradient(135deg, #9b6dff, #c084fc)" : "transparent",
+                    color: view === v ? "#fff" : "#7c6f99",
+                    boxShadow: view === v ? "0 4px 12px #9b6dff44" : "none",
+                  }}>
+                    {v === "card" ? "⊞ Cards" : "☰ List"}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* ── Stats Bar ── */}
+        <StatsBar stats={stats} loading={loading} />
 
         {/* ── Controls ── */}
         <div className="controls-enter" style={{
           background: "rgba(255,255,255,0.75)",
           backdropFilter: "blur(16px)",
           border: "1px solid #e8dff7",
-          borderRadius: "20px",
-          padding: "18px 22px",
+          borderRadius: "20px", padding: "18px 22px",
           marginBottom: "28px",
           display: "flex", flexWrap: "wrap",
           gap: "12px", alignItems: "center",
           boxShadow: "0 4px 24px #9b6dff0d",
         }}>
-          <SearchBar value={filters.search} onChange={(v) => updateFilter("search", v)} />
+          <SearchBar value={filters.search} onChange={v => updateFilter("search", v)} />
           <Filters
             issue={filters.issue} minAge={filters.minAge} maxAge={filters.maxAge}
             sortBy={filters.sortBy} sortOrder={filters.sortOrder}
-            onIssueChange={(v) => updateFilter("issue", v)}
-            onMinAgeChange={(v) => updateFilter("minAge", v)}
-            onMaxAgeChange={(v) => updateFilter("maxAge", v)}
-            onSortByChange={(v) => updateFilter("sortBy", v)}
-            onSortOrderChange={(v) => updateFilter("sortOrder", v)}
+            onIssueChange={v => updateFilter("issue", v)}
+            onMinAgeChange={v => updateFilter("minAge", v)}
+            onMaxAgeChange={v => updateFilter("maxAge", v)}
+            onSortByChange={v => updateFilter("sortBy", v)}
+            onSortOrderChange={v => updateFilter("sortOrder", v)}
           />
           {hasActive && (
             <button onClick={resetFilters} style={{
@@ -169,10 +260,23 @@ export default function Home() {
               padding: "8px 16px", fontSize: "13px",
               fontWeight: 700, cursor: "pointer",
               fontFamily: "'Nunito', sans-serif",
-              transition: "all 0.2s",
+            }}>✕ Clear</button>
+          )}
+
+          {/* Subtle refetching indicator */}
+          {refetching && (
+            <div style={{
+              marginLeft: "auto", display: "flex",
+              alignItems: "center", gap: "6px",
+              fontSize: "12px", color: "#b3a8cc", fontWeight: 600,
             }}>
-              ✕ Clear
-            </button>
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: "#9b6dff",
+                animation: "pulse 1s ease infinite",
+              }} />
+              Updating...
+            </div>
           )}
         </div>
 
@@ -180,13 +284,13 @@ export default function Home() {
         {error && (
           <div style={{
             background: "#fff0f5", border: "1px solid #fbb6ce",
-            borderRadius: "20px", padding: "40px",
-            textAlign: "center",
+            borderRadius: "20px", padding: "40px", textAlign: "center",
           }}>
             <p style={{ fontSize: "40px", marginBottom: "12px" }}>⚠️</p>
             <p style={{ color: "#be185d", fontSize: "16px", fontWeight: 600 }}>{error}</p>
             <button onClick={() => setFilters(f => ({ ...f }))} style={{
-              marginTop: "16px", background: "linear-gradient(135deg, #f472b6, #ec4899)",
+              marginTop: "16px",
+              background: "linear-gradient(135deg, #f472b6, #ec4899)",
               color: "#fff", border: "none", borderRadius: "12px",
               padding: "10px 24px", fontSize: "14px",
               fontWeight: 700, cursor: "pointer",
@@ -239,54 +343,61 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Card View ── */}
-        {!loading && !error && patients.length > 0 && view === "card" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: "18px" }}>
-            {patients.map((p, i) => <PatientCard key={p.patient_id} patient={p} index={i} />)}
-          </div>
-        )}
-
-        {/* ── Row View ── */}
-        {!loading && !error && patients.length > 0 && view === "row" && (
-          <div style={{
-            background: "rgba(255,255,255,0.8)",
-            backdropFilter: "blur(16px)",
-            border: "1px solid #e8dff7",
-            borderRadius: "20px", overflow: "hidden",
-            boxShadow: "0 4px 24px #9b6dff0d",
-            animation: "fadeIn 0.4s ease both",
-          }}>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "linear-gradient(135deg, #f5f0ff, #fdf4ff)", borderBottom: "1px solid #e8dff7" }}>
-                    {["Patient", "Age", "Condition", "Email", "Phone", "Address"].map((h) => (
-                      <th key={h} style={{
-                        padding: "14px 20px", textAlign: "left",
-                        fontSize: "11px", fontWeight: 800,
-                        letterSpacing: "0.08em", color: "#9b6dff",
-                        textTransform: "uppercase",
-                        fontFamily: "'Nunito', sans-serif",
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {patients.map((p, i) => <PatientRow key={p.patient_id} patient={p} index={i} />)}
-                </tbody>
-              </table>
+        {/* ── Results with fade transition ── */}
+        <div style={{
+          transition: "opacity 0.18s ease, transform 0.18s ease",
+          opacity: visible ? 1 : 0,
+          transform: visible ? "translateY(0)" : "translateY(6px)",
+        }}>
+          {/* Card View */}
+          {!loading && !error && patients.length > 0 && view === "card" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: "18px" }}>
+              {patients.map((p, i) => <PatientCard key={p.patient_id} patient={p} index={i} />)}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Pagination ── */}
-        {!loading && !error && patients.length > 0 && (
-          <Pagination
-            page={filters.page} totalPages={totalPages} total={total}
-            limit={filters.limit}
-            onPageChange={(p) => setFilters((prev) => ({ ...prev, page: p }))}
-          />
-        )}
+          {/* Row View */}
+          {!loading && !error && patients.length > 0 && view === "row" && (
+            <div style={{
+              background: "rgba(255,255,255,0.8)",
+              backdropFilter: "blur(16px)",
+              border: "1px solid #e8dff7",
+              borderRadius: "20px", overflow: "hidden",
+              boxShadow: "0 4px 24px #9b6dff0d",
+            }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "linear-gradient(135deg, #f5f0ff, #fdf4ff)", borderBottom: "1px solid #e8dff7" }}>
+                      {["Patient", "Age", "Condition", "Email", "Phone", "Address"].map(h => (
+                        <th key={h} style={{
+                          padding: "14px 20px", textAlign: "left",
+                          fontSize: "11px", fontWeight: 800,
+                          letterSpacing: "0.08em", color: "#9b6dff",
+                          textTransform: "uppercase",
+                          fontFamily: "'Nunito', sans-serif",
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patients.map((p, i) => <PatientRow key={p.patient_id} patient={p} index={i} />)}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && !error && patients.length > 0 && (
+            <Pagination
+              page={filters.page} totalPages={totalPages}
+              total={total} limit={filters.limit}
+              onPageChange={p => setFilters(prev => ({ ...prev, page: p }))}
+            />
+          )}
+        </div>
+
       </div>
     </main>
   );

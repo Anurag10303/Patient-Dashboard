@@ -101,5 +101,10 @@ body > * { position: relative; z-index: 1; }
   50%       { transform: translate(-15px, 15px) scale(1.03); }
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.8); }
+}
+
 .blob1 { animation: float1 8s ease-in-out infinite; }
 .blob2 { animation: float2 10s ease-in-out infinite; }

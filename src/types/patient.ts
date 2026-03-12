@@ -13,11 +13,19 @@ export interface Patient {
   medical_issue: string;
 }
 
+export interface PatientStats {
+  totalAll: number;
+  avgAge: number;
+  topCondition: string;
+  noContact: number;
+}
+
 export interface PatientsApiResponse {
   data: Patient[];
   total: number;
   page: number;
   totalPages: number;
+  stats: PatientStats;
 }
 
 export interface PatientQueryParams {

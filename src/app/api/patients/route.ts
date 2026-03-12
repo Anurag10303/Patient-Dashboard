@@ -3,11 +3,9 @@ import { readFileSync } from "fs";
 import path from "path";
 import { Patient, PatientQueryParams } from "@/types/patient";
 
-// Read JSON once at module level (cached between requests)
 const loadPatients = (): Patient[] => {
   const filePath = path.join(process.cwd(), "data", "MOCK_DATA.json");
-  const fileContent = readFileSync(filePath, "utf-8");
-  return JSON.parse(fileContent) as Patient[];
+  return JSON.parse(readFileSync(filePath, "utf-8")) as Patient[];
 };
 
 export async function GET(request: NextRequest) {
@@ -25,61 +23,65 @@ export async function GET(request: NextRequest) {
       sortOrder: searchParams.get("sortOrder") ?? "asc",
     };
 
-    let patients = loadPatients();
+    const allPatients = loadPatients();
+    let patients = [...allPatients];
 
-    // 1. Search — by name or email
+    // Search
     if (params.search) {
-      const query = params.search.toLowerCase();
-      patients = patients.filter(
-        (p) =>
-          p.patient_name.toLowerCase().includes(query) ||
-          p.contact[0]?.email?.toLowerCase().includes(query)
+      const q = params.search.toLowerCase();
+      patients = patients.filter(p =>
+        p.patient_name.toLowerCase().includes(q) ||
+        p.contact[0]?.email?.toLowerCase().includes(q)
       );
     }
 
-    // 2. Filter by medical issue
-    if (params.issue) {
-      patients = patients.filter((p) => p.medical_issue === params.issue);
-    }
+    // Filter by issue
+    if (params.issue) patients = patients.filter(p => p.medical_issue === params.issue);
 
-    // 3. Filter by age range
-    if (params.minAge) {
-      patients = patients.filter((p) => p.age >= parseInt(params.minAge!));
-    }
-    if (params.maxAge) {
-      patients = patients.filter((p) => p.age <= parseInt(params.maxAge!));
-    }
+    // Filter by age
+    if (params.minAge) patients = patients.filter(p => p.age >= parseInt(params.minAge!));
+    if (params.maxAge) patients = patients.filter(p => p.age <= parseInt(params.maxAge!));
 
-    // 4. Sort
-    const sortOrder = params.sortOrder === "desc" ? -1 : 1;
-    patients = patients.sort((a, b) => {
-      if (params.sortBy === "age") {
-        return (a.age - b.age) * sortOrder;
-      }
-      // default: sort by name
-      return a.patient_name.localeCompare(b.patient_name) * sortOrder;
-    });
+    // Sort
+    const order = params.sortOrder === "desc" ? -1 : 1;
+    patients.sort((a, b) =>
+      params.sortBy === "age"
+        ? (a.age - b.age) * order
+        : a.patient_name.localeCompare(b.patient_name) * order
+    );
 
-    // 5. Pagination
+    // Pagination
     const total = patients.length;
     const page = parseInt(params.page!);
     const limit = parseInt(params.limit!);
     const totalPages = Math.ceil(total / limit);
-    const offset = (page - 1) * limit;
-    const paginated = patients.slice(offset, offset + limit);
+    const paginated = patients.slice((page - 1) * limit, page * limit);
+
+    // --- Stats (computed from ALL 1000 records, not filtered) ---
+    const avgAge = Math.round(allPatients.reduce((s, p) => s + p.age, 0) / allPatients.length);
+    const issueCounts = allPatients.reduce<Record<string, number>>((acc, p) => {
+      acc[p.medical_issue] = (acc[p.medical_issue] ?? 0) + 1;
+      return acc;
+    }, {});
+    const topCondition = Object.entries(issueCounts).sort((a, b) => b[1] - a[1])[0][0];
+    const noContact = allPatients.filter(p =>
+      !p.contact[0]?.email && !p.contact[0]?.number
+    ).length;
 
     return NextResponse.json({
       data: paginated,
       total,
       page,
       totalPages,
+      stats: {
+        totalAll: allPatients.length,
+        avgAge,
+        topCondition,
+        noContact,
+      },
     });
   } catch (error) {
-    console.error("API error:", error);
-    return NextResponse.json(
-      { error: "Failed to load patient data" },
-      { status: 500 }
-    );
+    console.error(error);
+    return NextResponse.json({ error: "Failed to load patient data" }, { status: 500 });
   }
 }
-
